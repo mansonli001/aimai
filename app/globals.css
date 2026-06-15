@@ -1,27 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@100;200;300;400;500;700&family=Noto+Serif+SC:wght@400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Noto Sans SC', system-ui, sans-serif;
+  background-color: #1d0f12;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+/* 毛玻璃卡片 */
+.glass-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 毛玻璃表面（输入框用） */
+.glass-surface {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 发光按钮 */
+.glow-button {
+  box-shadow: 0 0 20px rgba(255, 77, 126, 0.3);
+}
+
+/* 输入框聚焦效果 */
+.input-glow:focus-within {
+  border-color: rgba(255, 178, 190, 0.4);
+  box-shadow: 0 0 15px rgba(255, 77, 126, 0.1);
+}
+
+/* 进度条渐变 */
+.progress-gradient {
+  background: linear-gradient(90deg, #4e436a 0%, #ff4d7e 50%, #ffb2be 100%);
+}
+
+/* 雷达脉冲环 */
+.pulse-ring {
+  position: relative;
+  width: 220px;
+  height: 220px;
+}
+
+.pulse-ring::before,
+.pulse-ring::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 1px solid #ff4d7e;
+  border-radius: 50%;
+  animation: heartPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  opacity: 0;
+}
+
+.pulse-ring::after {
+  animation-delay: 1s;
+}
+
+@keyframes heartPulse {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { opacity: 0.5; }
+  100% { transform: scale(1.3); opacity: 0; }
+}
+
+/* 扫描线 */
+.scan-line {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #ff4d7e, transparent);
+  width: 100%;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  animation: scanning 4s linear infinite;
+}
+
+@keyframes scanning {
+  0% { top: 10%; opacity: 0; }
+  50% { opacity: 1; }
+  100% { top: 90%; opacity: 0; }
+}
+
+/* 信号引用左侧边框 */
+.signal-quote-border {
+  border-left: 2px solid rgba(255, 77, 126, 0.4);
+}
+
+/* 数字发光效果 */
+.number-glow {
+  text-shadow: 0 0 15px rgba(255, 77, 126, 0.4);
+}
+
+/* 标签大写 */
+.label-caps {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+/* 隐藏滚动条 */
+::-webkit-scrollbar {
+  display: none;
+}
+
+body {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* textarea placeholder */
+textarea::placeholder {
+  color: rgba(225, 190, 194, 0.3);
+}
+
+input::placeholder {
+  color: rgba(225, 190, 194, 0.3);
 }
