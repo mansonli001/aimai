@@ -1,27 +1,39 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   TYPES,
   HOOKS,
   getColor,
-  getTagline,
+  getTemperature,
   type DetectResult,
 } from "@/lib/constants";
 
 interface ResultScreenProps {
   result: DetectResult;
+  gender?: string;
   onRetry: () => void;
 }
 
-export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
+export default function ResultScreen({ result, gender = "male", onRetry }: ResultScreenProps) {
   const pct = Math.round(Math.max(0, Math.min(100, result.pct)));
-  const typeDesc = TYPES[result.type] || "";
-  const tagline = getTagline(pct);
+  const primaryType = result.primary_type || result.type || "";
+  const secondaryType = result.secondary_type || "";
+  const typeDesc = result.type_desc || TYPES[primaryType] || "";
+  const temperature = result.temperature || getTemperature(pct);
+  const ahaMoment = result.aha_moment || "";
   const color = getColor(pct);
 
   const [animatedPct, setAnimatedPct] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [boldCopied, setBoldCopied] = useState(false);
+  const [femaleCopied, setFemaleCopied] = useState(false);
+  const [showUnlockToast, setShowUnlockToast] = useState<string | null>(null);
+  const [unlockedTypes, setUnlockedTypes] = useState<string[]>([]);
+  const [showUnlockList, setShowUnlockList] = useState(false);
+  const [lastResult, setLastResult] = useState<{ pct: number; temperature: string; primary_type: string; timestamp: number } | null>(null);
+  const [showFullUnlock, setShowFullUnlock] = useState(false);
+  const resultRef = useRef<HTMLDivElement>(null);
 
   // 数字动画
   useEffect(() => {
@@ -41,17 +53,72 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
     requestAnimationFrame(tick);
   }, [pct]);
 
-  // 复制文案
+  // localStorage: 读取上次结果 + 类型解锁
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("aimai_last_result");
+      if (saved) {
+        setLastResult(JSON.parse(saved));
+      }
+    } catch {}
+
+    try {
+      const saved = localStorage.getItem("aimai_unlocked_types");
+      const existing: string[] = saved ? JSON.parse(saved) : [];
+      const newTypes = [primaryType, secondaryType].filter(Boolean);
+      const toAdd = newTypes.filter((t) => !existing.includes(t));
+
+      if (toAdd.length > 0) {
+        const updated = [...existing, ...toAdd];
+        localStorage.setItem("aimai_unlocked_types", JSON.stringify(updated));
+        setUnlockedTypes(updated);
+        // 显示解锁提示
+        toAdd.forEach((t, i) => {
+          setTimeout(() => setShowUnlockToast(t), i * 1500);
+        });
+        // 全部解锁
+        if (updated.length >= 20) {
+          setTimeout(() => setShowFullUnlock(true), 1000);
+          setTimeout(() => setShowFullUnlock(false), 4000);
+        }
+      } else {
+        setUnlockedTypes(existing);
+      }
+    } catch {}
+
+    // 保存本次结果
+    try {
+      localStorage.setItem(
+        "aimai_last_result",
+        JSON.stringify({ pct, temperature, primary_type: primaryType, timestamp: Date.now() })
+      );
+    } catch {}
+  }, [pct, temperature, primaryType, secondaryType]);
+
+  // 解锁提示自动消失
+  useEffect(() => {
+    if (showUnlockToast) {
+      const t = setTimeout(() => setShowUnlockToast(null), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [showUnlockToast]);
+
+  // 复制分享文案
   const handleCopy = useCallback(() => {
     const text = [
       `暧昧检测局鉴定报告`,
       ``,
-      `暧昧指数：${pct}`,
-      `类型：${result.type}`,
-      `小暧说：「${result.sp_quote}」`,
-      `今晚小暧让我发：${result.bold_line}`,
+      `${temperature}`,
+      `类型：${primaryType}${secondaryType ? " + " + secondaryType : ""}`,
       ``,
-      `aimai.starfluxes.com · 你也有一段搞不懂的聊天吗 →`,
+      `小暧说：`,
+      `「${result.sp_quote}」`,
+      ``,
+      `今晚小暧让我发：`,
+      `${result.bold_line}`,
+      ``,
+      `aimai.starfluxes.com`,
+      `你也有一段搞不懂的聊天记录吗 →`,
     ].join("\n");
 
     navigator.clipboard
@@ -60,26 +127,103 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2500);
       })
-      .catch(() => {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.position = "fixed";
-        ta.style.left = "-9999px";
-        document.body.appendChild(ta);
-        ta.select();
-        try {
-          document.execCommand("copy");
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2500);
-        } catch {
-          alert("复制失败，请手动复制");
-        }
-        document.body.removeChild(ta);
-      });
-  }, [pct, result]);
+      .catch(() => {});
+  }, [pct, result, temperature, primaryType, secondaryType]);
+
+  // 复制 bold_line
+  const handleCopyBold = useCallback(() => {
+    navigator.clipboard.writeText(result.bold_line).then(() => {
+      setBoldCopied(true);
+      setTimeout(() => setBoldCopied(false), 2500);
+    }).catch(() => {});
+  }, [result.bold_line]);
+
+  // 复制 female_suggestion
+  const handleCopyFemale = useCallback(() => {
+    if (result.female_suggestion) {
+      navigator.clipboard.writeText(result.female_suggestion).then(() => {
+        setFemaleCopied(true);
+        setTimeout(() => setFemaleCopied(false), 2500);
+      }).catch(() => {});
+    }
+  }, [result.female_suggestion]);
+
+  // 截这句：生成单句分享卡片
+  const handleCaptureSignal = useCallback((layer3: string) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 600;
+    canvas.height = 400;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // 背景
+    ctx.fillStyle = "#1d0f12";
+    ctx.fillRect(0, 0, 600, 400);
+
+    // 文字
+    ctx.fillStyle = "#ffb2be";
+    ctx.font = "20px 'Noto Serif SC', Georgia, serif";
+    ctx.textAlign = "center";
+    // 自动换行
+    const maxWidth = 480;
+    const words = layer3.split("");
+    let line = "";
+    let y = 160;
+    for (const char of words) {
+      const testLine = line + char;
+      if (ctx.measureText(testLine).width > maxWidth) {
+        ctx.fillText(line, 300, y);
+        line = char;
+        y += 32;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line, 300, y);
+
+    // 底部
+    ctx.fillStyle = "rgba(225, 190, 194, 0.3)";
+    ctx.font = "12px sans-serif";
+    ctx.fillText("aimai.starfluxes.com", 300, 360);
+
+    // 下载
+    const link = document.createElement("a");
+    link.download = "aimai-signal.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  }, []);
+
+  // 温度对比
+  const lastTempNum = lastResult?.temperature?.match(/([\d.]+)°/)?.[1];
+  const currentTempNum = temperature.match(/([\d.]+)°/)?.[1];
+  const tempDiff = lastTempNum && currentTempNum ? parseFloat(currentTempNum) - parseFloat(lastTempNum) : null;
+  const tempTrend = tempDiff !== null
+    ? tempDiff > 0 ? "温度在升。" : tempDiff < 0 ? "冷下来了。" : "还在原地。"
+    : null;
 
   return (
-    <div className="px-edge-margin pt-6 pb-20">
+    <div className="px-edge-margin pt-6 pb-20" ref={resultRef}>
+      {/* 解锁提示 Toast */}
+      {showUnlockToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 glass-card px-5 py-3 rounded-xl text-sm text-primary animate-fade-up">
+          解锁新类型：{showUnlockToast}
+        </div>
+      )}
+
+      {/* 全解锁特效 */}
+      {showFullUnlock && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 animate-fade-up">
+          <div className="text-center px-8">
+            <p className="text-2xl text-primary font-light mb-3">
+              你解锁了全部20种暧昧类型。
+            </p>
+            <p className="text-sm text-on-surface-variant/60">
+              小暧说：你的感情经历有点复杂啊。
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex justify-between items-center mb-8">
         <div>
@@ -98,7 +242,25 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
         </button>
       </header>
 
-      {/* 1. 定调句卡片 */}
+      {/* 温度对比 */}
+      {lastResult && tempTrend && (
+        <div className="text-center mb-4 animate-fade-up">
+          <span className="text-xs text-on-surface-variant/40">
+            上次 {lastTempNum}° → 这次 {currentTempNum}° · {tempTrend}
+          </span>
+        </div>
+      )}
+
+      {/* 模块0：AHA 时刻 */}
+      {ahaMoment && (
+        <section className="text-center mb-6 animate-fade-up" style={{ animationDelay: "0s" }}>
+          <p className="font-serif text-[22px] leading-relaxed" style={{ color: "#ff4d7e" }}>
+            {ahaMoment}
+          </p>
+        </section>
+      )}
+
+      {/* 模块1：温度隐喻句 */}
       <section
         className="glass-card rounded-3xl p-6 text-center mb-6 animate-fade-up"
         style={{ animationDelay: "0.1s" }}
@@ -107,11 +269,11 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
           className="font-serif text-[22px] leading-relaxed"
           style={{ color: color.text }}
         >
-          「{tagline}」
+          「{temperature}」
         </p>
       </section>
 
-      {/* 2. 暧昧指数卡片 */}
+      {/* 模块2：暧昧指数卡片 */}
       <section
         className="glass-card rounded-3xl p-8 mb-6 animate-fade-up"
         style={{
@@ -137,12 +299,16 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
               %
             </span>
           </div>
-          <div className="text-primary text-lg font-light mt-2">
-            {result.type}
+          {/* 类型标签 */}
+          <div className="text-center mt-3">
+            <span className="text-primary text-lg font-light">{primaryType}</span>
+            {secondaryType && (
+              <span className="text-on-surface-variant/50 text-sm ml-2">+ {secondaryType}</span>
+            )}
           </div>
-          <p className="text-sm text-on-surface-variant/50 mt-1">
-            {typeDesc}
-          </p>
+          {typeDesc && (
+            <p className="text-xs text-on-surface-variant/40 mt-1 text-center">{typeDesc}</p>
+          )}
         </div>
         {/* Progress Bar */}
         <div className="w-full mt-6">
@@ -156,55 +322,29 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
             />
           </div>
         </div>
-      </section>
-
-      {/* 3. 行为数据卡片 */}
-      {result.behavior_data && (
-        <section
-          className="glass-card rounded-3xl p-6 mb-6 animate-fade-up"
-          style={{ animationDelay: "0.25s" }}
-        >
-          <p className="label-caps text-on-surface-variant/40 mb-4">
-            小暧数了一下
-          </p>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: color.main }}
-              />
-              <span className="text-sm text-on-surface/80 font-light">
-                {result.behavior_data.her_initiative}
-              </span>
+        {/* 行为数据面板 */}
+        {result.behavior_data && (
+          <div className="mt-5 space-y-1.5 text-xs text-on-surface-variant/40 font-light">
+            <div>
+              {result.behavior_data.her_initiative} · {result.behavior_data.your_initiative}
             </div>
-            <div className="flex items-center gap-3">
-              <div
-                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: color.main, opacity: 0.6 }}
-              />
-              <span className="text-sm text-on-surface/80 font-light">
-                {result.behavior_data.your_initiative}
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div
-                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: color.main, opacity: 0.4 }}
-              />
-              <span className="text-sm text-on-surface/80 font-light">
-                {result.behavior_data.unnecessary_questions}
-              </span>
-            </div>
-            <div className="border-t border-white/5 pt-3 mt-3">
-              <p className="text-sm font-light" style={{ color: color.text }}>
+            {result.behavior_data.reply_ratio && (
+              <div>{result.behavior_data.reply_ratio}</div>
+            )}
+            <div>{result.behavior_data.unnecessary_questions}</div>
+            {result.behavior_data.time_signal && (
+              <div>时间信号：{result.behavior_data.time_signal}</div>
+            )}
+            <div className="border-t border-white/5 pt-2 mt-2">
+              <p style={{ color: color.text }} className="text-sm">
                 {result.behavior_data.summary}
               </p>
             </div>
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
-      {/* 4. 关键信号卡片 */}
+      {/* 模块3：信号解读卡片 */}
       <section
         className="glass-card rounded-3xl p-6 mb-6 animate-fade-up"
         style={{ animationDelay: "0.3s" }}
@@ -214,7 +354,14 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
         </p>
         <div className="space-y-6">
           {result.signals.map((signal, i) => (
-            <div key={i} className="space-y-3">
+            <div key={i} className="space-y-3 relative">
+              {/* 截这句按钮 */}
+              <button
+                className="absolute -top-1 right-0 text-[10px] text-primary/50 hover:text-primary transition-colors"
+                onClick={() => handleCaptureSignal(signal.layer3)}
+              >
+                截这句
+              </button>
               {/* Quote */}
               <div className="signal-quote-border pl-4 py-1">
                 <p className="font-serif text-body-quote italic text-on-surface-variant">
@@ -240,9 +387,8 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
                   </span>
                   {signal.layer3}
                 </div>
-                {/* Proof */}
                 {signal.proof && (
-                  <div className="text-xs text-on-surface-variant/30 mt-1 pl-2 border-l border-white/5">
+                  <div className="text-[11px] text-on-surface-variant/30 mt-1 pl-2 border-l border-white/5">
                     依据：{signal.proof}
                   </div>
                 )}
@@ -255,7 +401,7 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
         </div>
       </section>
 
-      {/* 5. 小暧的话卡片 */}
+      {/* 模块4：小暧说卡片 */}
       <section
         className="glass-card rounded-3xl p-6 mb-6 animate-fade-up"
         style={{
@@ -287,13 +433,14 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
         </div>
       </section>
 
-      {/* 6. 风险提示卡片 */}
+      {/* 风险提示卡片 */}
       {result.risk && (
         <section
           className="glass-card rounded-3xl p-6 mb-6 animate-fade-up"
           style={{
             animationDelay: "0.45s",
-            borderLeft: `2px solid ${color.main}40`,
+            borderStyle: "dashed",
+            backgroundColor: "rgba(255, 100, 50, 0.05)",
           }}
         >
           <div className="flex gap-3">
@@ -310,7 +457,7 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
         </section>
       )}
 
-      {/* 7. 小暧忍不住了卡片 */}
+      {/* 模块5：小暧忍不住了卡片 */}
       <section
         className="glass-card rounded-3xl p-6 mb-6 animate-fade-up"
         style={{
@@ -353,32 +500,121 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
             「{result.safe_line}」
           </p>
           <p className="text-xs text-on-surface-variant/30 mt-3 text-right italic">
-            剩下的，看她接不接。
+            {result.ending || "剩下的，看她接不接。"}
           </p>
         </div>
+
+        {/* 复制台词按钮 */}
+        <button
+          className="w-full mt-4 py-3 glass-card rounded-xl text-sm text-primary hover:bg-primary/10 transition-all active:scale-[0.98]"
+          onClick={handleCopyBold}
+        >
+          {boldCopied ? "已复制" : "复制小暧的台词"}
+        </button>
       </section>
 
-      {/* 分享卡片 */}
+      {/* 模块6：女生视角结果 */}
+      {gender === "female" && (
+        <>
+          {/* 感知评分 */}
+          {typeof result.his_awareness === "number" && (
+            <section
+              className="glass-card rounded-3xl p-6 mb-6 animate-fade-up"
+              style={{ animationDelay: "0.55s" }}
+            >
+              <p className="label-caps text-on-surface-variant/40 mb-3">
+                他的信号感知评分
+              </p>
+              <div
+                className="text-5xl font-light number-glow mb-2"
+                style={{ color: color.main }}
+              >
+                {result.his_awareness}
+              </div>
+              <p className="text-sm text-on-surface-variant/60 font-light">
+                {result.his_awareness <= 30
+                  ? "他真的没看出来，不是不喜欢你。"
+                  : result.his_awareness <= 60
+                  ? "他可能感觉到了，但不确定。"
+                  : result.his_awareness <= 80
+                  ? "他感觉到了，在等你再明确一点。"
+                  : "他知道，他在等你先说。"}
+              </p>
+            </section>
+          )}
+
+          {/* 信号清晰度 */}
+          {result.signal_clarity && (
+            <section
+              className="glass-card rounded-3xl p-6 mb-6 animate-fade-up"
+              style={{ animationDelay: "0.6s" }}
+            >
+              <p className="label-caps text-on-surface-variant/40 mb-3">
+                你的信号清晰度
+              </p>
+              <p
+                className="text-2xl font-light"
+                style={{
+                  color:
+                    result.signal_clarity === "直接"
+                      ? "#59e073"
+                      : result.signal_clarity === "模糊"
+                      ? "#d85a30"
+                      : "#b91c1c",
+                }}
+              >
+                {result.signal_clarity}
+              </p>
+            </section>
+          )}
+
+          {/* 小暧建议 */}
+          {result.female_suggestion && (
+            <section
+              className="glass-card rounded-3xl p-6 mb-6 animate-fade-up"
+              style={{ animationDelay: "0.65s" }}
+            >
+              <p className="label-caps text-on-surface-variant/40 mb-3">
+                小暧建议
+              </p>
+              <p className="font-serif text-lg text-on-surface/90 leading-relaxed mb-4">
+                {result.female_suggestion}
+              </p>
+              <button
+                className="w-full py-3 glass-card rounded-xl text-sm text-primary hover:bg-primary/10 transition-all active:scale-[0.98]"
+                onClick={handleCopyFemale}
+              >
+                {femaleCopied ? "已复制" : "复制这句话"}
+              </button>
+            </section>
+          )}
+        </>
+      )}
+
+      {/* 模块7：分享卡片 */}
       <section
         className="glass-card rounded-3xl p-6 mb-6 animate-fade-up"
-        style={{ animationDelay: "0.6s" }}
+        style={{ animationDelay: "0.7s" }}
       >
         <p className="label-caps text-on-surface-variant/40 mb-4">
-          分享给哥们
+          {gender === "female" ? "分享给姐妹" : "分享给哥们"}
         </p>
         {/* Preview */}
         <div className="glass-card rounded-xl p-5 mb-4">
           <p className="label-caps text-on-surface-variant/30 mb-2">
             暧昧检测局 · 鉴定报告
           </p>
-          <div
-            className="text-4xl font-light number-glow"
-            style={{ color: color.main }}
-          >
-            {pct}%
+          <div className="flex items-baseline gap-2">
+            <div
+              className="text-4xl font-light number-glow"
+              style={{ color: color.main }}
+            >
+              {pct}%
+            </div>
+            <span className="text-xs text-on-surface-variant/50">{temperature}</span>
           </div>
           <p className="text-sm text-on-surface-variant/60 mt-1">
-            {result.type}
+            {primaryType}{secondaryType ? " + " + secondaryType : ""}
           </p>
           <div className="border-t border-white/5 my-3" />
           <p className="text-sm text-on-surface-variant/50 italic font-serif">
@@ -396,14 +632,47 @@ export default function ResultScreen({ result, onRetry }: ResultScreenProps) {
           style={{ boxShadow: `0 4px 20px ${color.main}30` }}
           onClick={handleCopy}
         >
-          {copied ? "已复制，发给哥们看" : "复制小暧的台词"}
+          {copied ? "已复制，发给哥们看" : "复制分享文案"}
         </button>
       </section>
+
+      {/* 模块9：类型解锁系统 */}
+      {unlockedTypes.length > 0 && (
+        <section
+          className="glass-card rounded-3xl p-5 mb-6 animate-fade-up"
+          style={{ animationDelay: "0.75s" }}
+        >
+          <button
+            className="w-full flex justify-between items-center"
+            onClick={() => setShowUnlockList(!showUnlockList)}
+          >
+            <span className="text-sm text-on-surface-variant/60 font-light">
+              已解锁 {unlockedTypes.length}/20 种暧昧类型
+            </span>
+            <span className="text-xs text-primary/50">
+              {showUnlockList ? "收起" : "展开"}
+            </span>
+          </button>
+          {showUnlockList && (
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-white/5">
+              {unlockedTypes.map((t) => (
+                <span
+                  key={t}
+                  className="px-2.5 py-1 rounded-md text-[10px] text-on-surface-variant/70"
+                  style={{ backgroundColor: "rgba(255, 77, 126, 0.1)" }}
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* 四钩子 2x2 Grid */}
       <section
         className="grid grid-cols-2 gap-3 animate-fade-up"
-        style={{ animationDelay: "0.7s" }}
+        style={{ animationDelay: "0.8s" }}
       >
         {HOOKS.map((hook) => (
           <a

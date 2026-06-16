@@ -38,6 +38,7 @@ interface DetectRequestBody {
   me?: string;
   her?: string;
   chatLog?: string;
+  gender?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
   const chatLog = (body.chatLog || "").trim();
   const me = (body.me || "我").trim();
   const her = (body.her || "她").trim();
+  const gender = body.gender === "female" ? "female" : "male";
 
   if (!chatLog || chatLog.length < 20) {
     return NextResponse.json(
@@ -80,23 +82,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // 构造 user message，女生视角追加说明
+  let userMessage = `以下是${me}和${her}的聊天记录，请分析暧昧信号：\n\n${chatLog}`;
+  if (gender === "female") {
+    userMessage = `注意：用户是女生，启用女生视角模式。\n分析方向：他读懂我的信号了吗。\n额外输出 his_awareness / signal_clarity / female_suggestion 字段。\n\n${userMessage}`;
+  }
+
   let raw: string;
   try {
     raw = await chatCompletion({
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `以下是${me}和${her}的聊天记录，请分析暧昧信号：\n\n${chatLog}`,
-        },
+        { role: "user", content: userMessage },
       ],
       temperature: 0.8,
-      maxTokens: 800,
+      maxTokens: 1000,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "AI 调用失败";
     console.error("[/api/detect] DeepSeek 调用失败：", msg);
-    // 降级返回默认结果
     return NextResponse.json({ ok: true, result: FALLBACK_RESULT });
   }
 
@@ -107,14 +111,12 @@ export async function POST(req: NextRequest) {
     result = JSON.parse(clean);
   } catch {
     console.error("[/api/detect] JSON 解析失败：", raw.slice(0, 200));
-    // 降级返回默认结果
     return NextResponse.json({ ok: true, result: FALLBACK_RESULT });
   }
 
   // 校验字段
   if (
     typeof result.pct !== "number" ||
-    typeof result.type !== "string" ||
     !Array.isArray(result.signals) ||
     typeof result.xiaoai !== "string" ||
     typeof result.bold_line !== "string"
@@ -126,6 +128,14 @@ export async function POST(req: NextRequest) {
   // 钳制 pct 到 0-100
   result.pct = Math.round(Math.max(0, Math.min(100, result.pct)));
 
+  // 兼容：如果返回了 type 但没有 primary_type，自动映射
+  if (!result.primary_type && result.type) {
+    result.primary_type = result.type;
+  }
+  if (result.primary_type && !result.type) {
+    result.type = result.primary_type;
+  }
+
   // 确保 behavior_data 存在
   if (!result.behavior_data) {
     result.behavior_data = FALLBACK_RESULT.behavior_data;
@@ -134,6 +144,11 @@ export async function POST(req: NextRequest) {
   // 确保 risk 字段存在
   if (typeof result.risk !== "string") {
     result.risk = "";
+  }
+
+  // 确保 secondary_type 存在
+  if (typeof result.secondary_type !== "string") {
+    result.secondary_type = "";
   }
 
   // 确保 signals 中每个都有 proof 字段

@@ -4,13 +4,14 @@ import { useState } from "react";
 import { EXAMPLES } from "@/lib/constants";
 
 interface InputScreenProps {
-  onDetect: (me: string, her: string, chatLog: string) => void;
+  onDetect: (me: string, her: string, chatLog: string, gender: string) => void;
 }
 
 export default function InputScreen({ onDetect }: InputScreenProps) {
   const [me, setMe] = useState("");
   const [her, setHer] = useState("");
   const [chatLog, setChatLog] = useState("");
+  const [gender, setGender] = useState<"male" | "female">("male");
   const charLen = chatLog.length;
   const canSubmit = chatLog.trim().length >= 20;
 
@@ -18,6 +19,10 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
     setMe(example.me);
     setHer(example.her);
     setChatLog(example.text);
+  };
+
+  const toggleGender = () => {
+    setGender((g) => (g === "male" ? "female" : "male"));
   };
 
   return (
@@ -53,14 +58,12 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
       {/* Hero */}
       <section className="text-center mb-10 animate-drift-up">
         <h2 className="text-[26px] font-light text-on-surface leading-tight mb-3">
-          她没说的那部分
+          你觉得怪怪的
           <br />
-          才是重点
+          那就是真的怪
         </h2>
         <p className="text-sm text-on-surface-variant/60 font-light leading-relaxed">
-          不用整理格式，不用解释背景
-          <br />
-          把你反复看的那几句粘进来就够了
+          不管你们聊的什么，小暧只看她的行为
         </p>
       </section>
 
@@ -84,7 +87,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
           </div>
           <div className="flex-1">
             <label className="block label-caps text-on-surface-variant/60 mb-1 pl-1">
-              她的代号
+              {gender === "female" ? "他的代号" : "她的代号"}
             </label>
             <div className="glass-surface rounded-xl px-4 py-3 input-glow transition-all">
               <input
@@ -106,7 +109,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
           <div className="glass-surface rounded-2xl p-4 flex flex-col min-h-[260px] input-glow transition-all">
             <textarea
               className="w-full flex-grow bg-transparent border-none p-0 text-body-md font-light text-on-surface resize-none leading-relaxed focus:ring-0 focus:outline-none"
-              placeholder="把你觉得奇怪的那几句粘进来就行，格式不用管。"
+              placeholder={"把你反复看的那几句粘进来就够了\n不用整理格式，不用解释背景。"}
               value={chatLog}
               onChange={(e) => {
                 const v = e.target.value.slice(0, 800);
@@ -123,6 +126,20 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
             </div>
           </div>
         </div>
+
+        {/* Gender Toggle */}
+        <button
+          className={`w-full py-3 rounded-xl text-sm font-light transition-all active:scale-[0.98] ${
+            gender === "female"
+              ? "border border-primary bg-primary/10 text-primary"
+              : "glass-card text-on-surface-variant/60 hover:text-primary"
+          }`}
+          onClick={toggleGender}
+        >
+          {gender === "female"
+            ? "已切换女生视角 · 再点切回"
+            : "我是女生，换个视角 →"}
+        </button>
       </section>
 
       {/* Action Button */}
@@ -130,7 +147,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
         <button
           className="w-full py-4 bg-primary-container text-white rounded-full font-light tracking-[0.3em] text-base glow-button active:scale-95 transition-transform duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
           disabled={!canSubmit}
-          onClick={() => onDetect(me || "我", her || "她", chatLog)}
+          onClick={() => onDetect(me || "我", her || "她", chatLog, gender)}
         >
           小暧，你来看看
         </button>

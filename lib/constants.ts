@@ -1,30 +1,47 @@
-// 八类型映射
+// 20类型映射
 export const TYPES: Record<string, string> = {
   "量子纠缠型": "表面聊正事，每句都带钩子",
-  "窗户纸型": "就差最后一步，谁先捅破谁赢",
-  "温水煮青蛙型": "聊了很久，从没断联，也没进展",
-  "云雨欲来型": "每个问题都在试探，风雨要来了",
-  "单方面起火型": "有一边明显在用力，另一边还没感觉",
-  "柏拉图危险型": "字面上什么都没有，但你睡不着",
-  "深水炸弹型": "某一句话信息量极大，你炸了吗",
-  "暧昧绝缘体": "她真的只是把你当朋友，醒醒",
+  "就差临门一脚型": "双方积极，但没人推进",
+  "一句话emo三天型": "某句话信息量炸裂",
+  "空气都甜了型": "每句话都带着一点什么",
+  "每天都聊但原地踏步型": "频率高，话题日常，没推进",
+  "细水长流渗透型": "不急不迫，每次多透露一点",
+  "我在发电你在充电型": "一方用力，一方只回应",
+  "每次找你都有剧本型": "理由和需求不符，她有更方便的渠道",
+  "薛定谔的在线型": "不规律消失再出现，像在测试",
+  "只在深夜发癫型": "深夜发日常，时间本身就是信号",
+  "名义上朋友实际上不对劲型": "聊天内容和频率超出朋友范围",
+  "分了但没散型": "名义分开，联系没变",
+  "两个傻子互相等型": "双方信号明显，都在等对方先说",
+  "你是备选还是备胎还不确定型": "有信号，但感觉她在维持多个联系",
+  "普通朋友不会这样说话型": "最近某些话、某个时间点开始变了",
+  "开始跟你说不必要说的事型": "透露了不必要告诉你的私人信息",
+  "聊天里开始出现「以后」型": "出现以后/下次/改天，且是对方先说",
+  "提起别人其实在看你反应型": "提到其他异性，话题转得不自然",
+  "明明能自己解决偏要来找你型": "求助有更便捷渠道，找你是制造接触",
+  "说了个地方但没说你来吗型": "提到地点/活动，没明确邀请",
 };
 
-// 定调句映射
-const TAGLINES: [number, number, string][] = [
-  [0, 20, "她真的只是在问路，别多想了。"],
-  [20, 40, "信号很弱，但不是完全没有。"],
-  [40, 60, "有点意思，值得继续观察。"],
-  [60, 75, "这锅热了，你感觉到了吗？"],
-  [75, 88, "她在等你，你还在分析什么？"],
-  [88, 101, "就差捅破那层纸了，今晚。"],
+// 温度隐喻句映射
+const TEMPERATURE_MAP: [number, number, string][] = [
+  [0, 20, "36.5° 正常体温，她真的只是在问路。"],
+  [20, 40, "37.2° 微微有点热，但可能是天气。"],
+  [40, 60, "37.8° 低烧，值得继续观察。"],
+  [60, 75, "38.5° 发烧了，你感觉到了吗？"],
+  [75, 88, "39.2° 已经很热，再不动手要退烧了。"],
+  [88, 101, "40°  烫手，捅破窗户纸就完了，今晚。"],
 ];
 
-export function getTagline(pct: number): string {
-  for (const [lo, hi, t] of TAGLINES) {
+export function getTemperature(pct: number): string {
+  for (const [lo, hi, t] of TEMPERATURE_MAP) {
     if (pct >= lo && pct < hi) return t;
   }
-  return TAGLINES[TAGLINES.length - 1][2];
+  return TEMPERATURE_MAP[TEMPERATURE_MAP.length - 1][2];
+}
+
+// 保留旧函数名兼容
+export function getTagline(pct: number): string {
+  return getTemperature(pct);
 }
 
 // 配色系统：根据 pct 区间动态变色
@@ -122,6 +139,30 @@ export const EXAMPLES: ExamplePill[] = [
 我：行啊
 她：你一般几点睡`,
   },
+  {
+    label: "她深夜发来一个问号",
+    me: "我",
+    her: "她",
+    text: `她：？
+我：怎么了
+她：没事 睡不着
+我：我也是
+她：哈哈 那聊会儿？
+我：聊啥
+她：随便 你先说`,
+  },
+  {
+    label: "她说最近好累",
+    me: "我",
+    her: "她",
+    text: `她：最近好累
+我：怎么了
+她：工作呗 还能怎么
+我：要不要休息一下
+她：你陪我聊会儿就不累了
+我：行啊
+她：那你讲个故事给我听`,
+  },
 ];
 
 // 行为数据类型
@@ -129,6 +170,8 @@ export interface BehaviorData {
   her_initiative: string;
   your_initiative: string;
   unnecessary_questions: string;
+  reply_ratio?: string;
+  time_signal?: string;
   summary: string;
 }
 
@@ -143,7 +186,12 @@ export interface Signal {
 
 export interface DetectResult {
   pct: number;
-  type: string;
+  temperature?: string;
+  primary_type?: string;
+  secondary_type?: string;
+  type_desc?: string;
+  aha_moment?: string;
+  type?: string; // 兼容旧字段
   behavior_data: BehaviorData;
   signals: Signal[];
   xiaoai: string;
@@ -151,7 +199,12 @@ export interface DetectResult {
   bold_line: string;
   bold_reason: string;
   safe_line: string;
+  ending?: string;
   sp_quote: string;
+  // 女生视角字段
+  his_awareness?: number;
+  signal_clarity?: string;
+  female_suggestion?: string;
 }
 
 // 四钩子数据
@@ -204,27 +257,35 @@ export const LOADING_STEPS = [
 
 // API 失败时的默认降级结果
 export const FALLBACK_RESULT: DetectResult = {
-  pct: 52,
-  type: "温水煮青蛙型",
+  pct: 68,
+  temperature: "38.5° 发烧了，你感觉到了吗？",
+  primary_type: "每次找你都有剧本型",
+  secondary_type: "只在深夜发癫型",
+  type_desc: "每次找你都有理由，但理由越来越牵强，还总在晚上。",
+  aha_moment: "你觉得怪怪的，是因为她一直在找借口。",
+  type: "每次找你都有剧本型",
   behavior_data: {
-    her_initiative: "她主动3次",
+    her_initiative: "她主动4次",
     your_initiative: "你主动1次",
-    unnecessary_questions: "她问了2个不必要问你的问题",
-    summary: "她找你的次数是你的3倍，她需要一个理由跟你说话",
+    unnecessary_questions: "她问了3个不必要问你的问题",
+    reply_ratio: "她平均回复3句，你平均回复1句",
+    time_signal: "深夜发消息",
+    summary: "她在用力，你还没感觉到",
   },
   signals: [
     {
-      quote: "那你在北京多久了",
-      layer1: "只是随口问一句",
-      layer2: "在试探你在这座城市的根有多深",
-      layer3: "她在评估你们之间有没有现实的可能性",
-      proof: "你们聊的是北京看病，和你待了多久没有关系",
+      quote: "那你平时周末一般干嘛",
+      layer1: "她在关心你的日常",
+      layer2: "她想知道你有没有空",
+      layer3: "她在等你反问她——「你呢？」这句话她等着你问呢",
+      proof: "这个问题和之前聊的话题没有关系，她主动转移了",
     },
   ],
-  xiaoai: "小暧暂时走神了，但凭直觉，这段聊天不简单。再试一次？",
+  xiaoai: "她找你聊这个，不是因为她没有百度。\n是因为她想跟你说话，需要一个理由。\n注射器只是个敲门砖。\n你懂吗。",
   risk: "",
-  bold_line: "你在这座城市多久了？够不够久到让我也留下来。",
-  bold_reason: "她在问你的生活，不是在问路。",
-  safe_line: "挺久的，挺习惯的。",
-  sp_quote: "问路的人，不会问你在哪多久。",
+  bold_line: "你问了我这么多，是不是认真想来北京了？来的话我带你转转",
+  bold_reason: "把她的话题接回来，自然，还给了她一个顺着聊的理由",
+  safe_line: "感觉你对北京挺感兴趣的，有机会来玩吗",
+  ending: "剩下的，看她接不接。",
+  sp_quote: "她有百度，她为什么来问你？",
 };

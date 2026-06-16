@@ -13,12 +13,14 @@ export default function Home() {
   const [screen, setScreen] = useState<Screen>("input");
   const [result, setResult] = useState<DetectResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [gender, setGender] = useState<string>("male");
   const resultRef = useRef<DetectResult | null>(null);
   const loadingDoneRef = useRef(false);
 
   const handleDetect = useCallback(
-    async (me: string, her: string, chatLog: string) => {
+    async (me: string, her: string, chatLog: string, g: string) => {
       setError(null);
+      setGender(g);
       setScreen("loading");
       resultRef.current = null;
       loadingDoneRef.current = false;
@@ -27,7 +29,7 @@ export default function Home() {
         const res = await fetch("/api/detect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ me, her, chatLog }),
+          body: JSON.stringify({ me, her, chatLog, gender: g }),
         });
 
         const data = await res.json();
@@ -37,7 +39,6 @@ export default function Home() {
         }
 
         resultRef.current = data.result;
-        // API 返回后检查 loading 动画是否也完成了
         if (loadingDoneRef.current) {
           setResult(data.result);
           setScreen("result");
@@ -53,7 +54,6 @@ export default function Home() {
 
   const handleLoadingDone = useCallback(() => {
     loadingDoneRef.current = true;
-    // Loading 动画完成后检查 API 是否也返回了
     if (resultRef.current) {
       setResult(resultRef.current);
       setScreen("result");
@@ -72,20 +72,18 @@ export default function Home() {
     <>
       <ShaderBackground />
       <main className="relative z-10 w-full max-w-container-max mx-auto min-h-screen">
-        {/* Error */}
         {error && (
           <div className="mx-edge-margin mt-20 p-4 glass-card rounded-xl text-primary-container text-sm text-center">
             {error}
           </div>
         )}
 
-        {/* Screens */}
         {screen === "input" && <InputScreen onDetect={handleDetect} />}
         {screen === "loading" && (
           <LoadingScreen onDone={handleLoadingDone} />
         )}
         {screen === "result" && result && (
-          <ResultScreen result={result} onRetry={handleRetry} />
+          <ResultScreen result={result} gender={gender} onRetry={handleRetry} />
         )}
       </main>
     </>
