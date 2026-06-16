@@ -152,12 +152,12 @@ export async function POST(req: NextRequest) {
   }
 
   // 确保 signals 中每个都有 proof 字段
-  result.signals = result.signals.map((s: {quote?: string; layer1?: string; layer2?: string; layer3?: string; proof?: string; [key: string]: unknown}) => ({
-    quote: s.quote || "",
-    layer1: s.layer1 || "",
-    layer2: s.layer2 || "",
-    layer3: s.layer3 || "",
-    proof: s.proof || "",
+  result.signals = result.signals.map((s) => ({
+    quote: (s as any).quote || "",
+    layer1: (s as any).layer1 || "",
+    layer2: (s as any).layer2 || "",
+    layer3: (s as any).layer3 || "",
+    proof: (s as any).proof || "",
   }));
 
   return NextResponse.json({ ok: true, result });

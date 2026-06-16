@@ -55,6 +55,9 @@ export default function ResultScreen({ result, gender = "male", onRetry }: Resul
 
   // localStorage: 读取上次结果 + 类型解锁
   useEffect(() => {
+    // 确保在客户端执行
+    if (typeof window === "undefined") return;
+
     try {
       const saved = localStorage.getItem("aimai_last_result");
       if (saved) {
@@ -105,6 +108,8 @@ export default function ResultScreen({ result, gender = "male", onRetry }: Resul
 
   // 复制分享文案
   const handleCopy = useCallback(() => {
+    if (typeof window === "undefined") return;
+    
     const text = [
       `暧昧检测局鉴定报告`,
       ``,
@@ -132,6 +137,8 @@ export default function ResultScreen({ result, gender = "male", onRetry }: Resul
 
   // 复制 bold_line
   const handleCopyBold = useCallback(() => {
+    if (typeof window === "undefined") return;
+    
     navigator.clipboard.writeText(result.bold_line).then(() => {
       setBoldCopied(true);
       setTimeout(() => setBoldCopied(false), 2500);
@@ -140,6 +147,8 @@ export default function ResultScreen({ result, gender = "male", onRetry }: Resul
 
   // 复制 female_suggestion
   const handleCopyFemale = useCallback(() => {
+    if (typeof window === "undefined") return;
+    
     if (result.female_suggestion) {
       navigator.clipboard.writeText(result.female_suggestion).then(() => {
         setFemaleCopied(true);
@@ -150,6 +159,8 @@ export default function ResultScreen({ result, gender = "male", onRetry }: Resul
 
   // 截这句：生成单句分享卡片
   const handleCaptureSignal = useCallback((layer3: string) => {
+    if (typeof window === "undefined") return;
+    
     const canvas = document.createElement("canvas");
     canvas.width = 600;
     canvas.height = 400;
