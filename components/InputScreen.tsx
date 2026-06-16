@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { EXAMPLES } from "@/lib/constants";
 
 interface InputScreenProps {
@@ -14,6 +14,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
   const [gender, setGender] = useState<"male" | "female">("male");
   const charLen = chatLog.length;
   const canSubmit = chatLog.trim().length >= 20;
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handlePillClick = (example: (typeof EXAMPLES)[number]) => {
     setMe(example.me);
@@ -24,6 +25,58 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
   const toggleGender = () => {
     setGender((g) => (g === "male" ? "female" : "male"));
   };
+
+  // 处理粘贴事件，确保正确获取剪贴板内容
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    // 阻止默认粘贴行为
+    e.preventDefault();
+    
+    try {
+      // 使用 Clipboard API 获取数据
+      const clipboardData = e.clipboardData || (window as any).clipboardData;
+      
+      if (clipboardData) {
+        // 优先获取纯文本
+        let text = clipboardData.getData("text/plain");
+        
+        // 如果纯文本为空，尝试获取 HTML 并转换
+        if (!text) {
+          const html = clipboardData.getData("text/html");
+          if (html) {
+            // 简单的 HTML 转纯文本
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = html;
+            text = tempDiv.textContent || tempDiv.innerText || "";
+          }
+        }
+        
+        // 标准化换行符
+        text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        
+        // 获取光标位置
+        const textarea = textareaRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const currentValue = chatLog;
+          const newValue = currentValue.substring(0, start) + text + currentValue.substring(end);
+          // 限制长度
+          const limitedValue = newValue.slice(0, 800);
+          setChatLog(limitedValue);
+          
+          // 恢复光标位置
+          setTimeout(() => {
+            textarea.focus();
+            const newCursorPos = Math.min(start + text.length, 800);
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+          }, 0);
+        }
+      }
+    } catch (err) {
+      // Clipboard API 不可用时，使用原始值
+      console.warn("Clipboard API error:", err);
+    }
+  }, [chatLog]);
 
   return (
     <div className="px-edge-margin pt-8 pb-16 flex flex-col min-h-screen">
@@ -108,6 +161,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
           </label>
           <div className="glass-surface rounded-2xl p-4 flex flex-col min-h-[260px] input-glow transition-all">
             <textarea
+              ref={textareaRef}
               className="w-full flex-grow bg-transparent border-none p-0 text-body-md font-light text-on-surface resize-none leading-relaxed focus:ring-0 focus:outline-none"
               placeholder={"把你反复看的那几句粘进来就够了\n不用整理格式，不用解释背景。"}
               value={chatLog}
@@ -115,6 +169,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
                 const v = e.target.value.slice(0, 800);
                 setChatLog(v);
               }}
+              onPaste={handlePaste}
             />
             <div className="flex justify-between items-center mt-3 pt-3 border-t border-white/5">
               <span className="text-xs text-on-surface-variant/40">
