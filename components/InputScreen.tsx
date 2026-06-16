@@ -12,6 +12,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
   const [her, setHer] = useState("");
   const [chatLog, setChatLog] = useState("");
   const [gender, setGender] = useState<"male" | "female">("male");
+  const [pasteHint, setPasteHint] = useState("");
   const charLen = chatLog.length;
   const canSubmit = chatLog.trim().length >= 20;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -26,13 +27,115 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
     setGender((g) => (g === "male" ? "female" : "male"));
   };
 
-  // 粘贴后处理：不阻止默认行为，让浏览器原生粘贴完整内容
-  // 然后在 onChange 中标准化换行符
+  // 从 HTML 中提取纯文本，保留换行结构
+  const htmlToText = useCallback((html: string): string => {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    // 将 block 元素后面加换行
+    doc.querySelectorAll("div, p, br").forEach((el) => {
+      el.appendChild(doc.createTextNode("\n"));
+    });
+    let text = doc.body?.textContent || "";
+    // 清理多余空行
+    text = text.replace(/\n{3,}/g, "\n\n").trim();
+    return text;
+  }, []);
+
+  // 将文本插入到 textarea
+  const insertText = useCallback((text: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setChatLog(text.slice(0, 800));
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const currentValue = chatLog;
+    const newValue = currentValue.substring(0, start) + text + currentValue.substring(end);
+    setChatLog(newValue.slice(0, 800));
+    requestAnimationFrame(() => {
+      const pos = Math.min(start + text.length, 800);
+      textarea.focus();
+      textarea.setSelectionRange(pos, pos);
+    });
+  }, [chatLog]);
+
+  // 拦截粘贴事件：优先读 HTML（微信多条消息完整内容在 HTML 里）
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const clipboardData = e.clipboardData || (window as any).clipboardData;
+    if (!clipboardData) return;
+
+    let text = "";
+
+    // 1. 优先尝试 text/html —— 微信多选复制的完整内容在这里
+    const html = clipboardData.getData("text/html");
+    if (html && html.trim()) {
+      text = htmlToText(html);
+    }
+
+    // 2. 如果 HTML 解析结果太短，用 text/plain 补充
+    const plain = clipboardData.getData("text/plain") || "";
+    if (!text || plain.length > text.length) {
+      text = plain;
+    }
+
+    if (!text) return; // 没有内容则让浏览器默认处理
+
+    e.preventDefault();
+
+    // 标准化换行符
+    text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    text = text.replace(/\n{3,}/g, "\n\n");
+
+    insertText(text);
+  }, [htmlToText, insertText]);
+
+  // "粘贴聊天记录"按钮：用 Clipboard API 直接读取系统剪贴板
+  const handlePasteButton = useCallback(async () => {
+    try {
+      // 优先用 read() API 尝试获取 HTML
+      if (navigator.clipboard?.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          if (item.types.includes("text/html")) {
+            const blob = await item.getType("text/html");
+            const html = await blob.text();
+            const text = htmlToText(html);
+            if (text) {
+              insertText(text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n"));
+              setPasteHint("已粘贴完整内容");
+              setTimeout(() => setPasteHint(""), 2000);
+              return;
+            }
+          }
+          if (item.types.includes("text/plain")) {
+            const blob = await item.getType("text/plain");
+            const text = await blob.text();
+            if (text) {
+              insertText(text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n"));
+              setPasteHint("已粘贴");
+              setTimeout(() => setPasteHint(""), 2000);
+              return;
+            }
+          }
+        }
+      }
+      // 降级到 readText()
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        insertText(text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n"));
+        setPasteHint("已粘贴");
+        setTimeout(() => setPasteHint(""), 2000);
+      }
+    } catch {
+      setPasteHint("请长按输入框手动粘贴");
+      setTimeout(() => setPasteHint(""), 3000);
+    }
+  }, [htmlToText, insertText]);
+
+  // onChange 处理手动输入
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     let v = e.target.value;
-    // 标准化换行符（\r\n → \n，\r → \n）
     v = v.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    // 去除多余空行（3个以上连续换行压缩为2个）
     v = v.replace(/\n{3,}/g, "\n\n");
     setChatLog(v.slice(0, 800));
   }, []);
@@ -115,9 +218,18 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
 
         {/* Chat Textarea */}
         <div className="flex flex-col pt-2">
-          <label className="block label-caps text-on-surface-variant/60 mb-1 pl-1">
-            把聊天记录贴进来
-          </label>
+          <div className="flex items-center justify-between mb-1 pl-1">
+            <label className="label-caps text-on-surface-variant/60">
+              把聊天记录贴进来
+            </label>
+            <button
+              type="button"
+              className="label-caps text-primary/70 hover:text-primary transition-colors active:scale-95"
+              onClick={handlePasteButton}
+            >
+              {pasteHint || "粘贴聊天记录"}
+            </button>
+          </div>
           <div className="glass-surface rounded-2xl p-4 flex flex-col min-h-[260px] input-glow transition-all">
             <textarea
               ref={textareaRef}
@@ -125,6 +237,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
               placeholder={"把你反复看的那几句粘进来就够了\n不用整理格式，不用解释背景。"}
               value={chatLog}
               onChange={handleChange}
+              onPaste={handlePaste}
             />
             <div className="flex justify-between items-center mt-3 pt-3 border-t border-white/5">
               <span className="text-xs text-on-surface-variant/40">
