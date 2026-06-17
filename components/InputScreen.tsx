@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState } from "react";
 import { EXAMPLES } from "@/lib/constants";
+import ChatInput from "./ChatInput";
 
 interface InputScreenProps {
   onDetect: (me: string, her: string, chatLog: string, gender: string) => void;
@@ -14,7 +15,6 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
   const [gender, setGender] = useState<"male" | "female">("male");
   const charLen = chatLog.length;
   const canSubmit = chatLog.trim().length >= 20;
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handlePillClick = (example: (typeof EXAMPLES)[number]) => {
     setMe(example.me);
@@ -26,22 +26,10 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
     setGender((g) => (g === "male" ? "female" : "male"));
   };
 
-  // 不拦截粘贴事件，让浏览器原生处理
-  // 微信 WKWebView 中原生粘贴能拿到完整内容，clipboardData.getData() 被限制
-  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    // 不调用 e.preventDefault()，让浏览器原生粘贴
-    // 完整内容会通过 onChange 事件获取
-  }, []);
-
-  // onChange 处理手动输入和粘贴后的内容
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    let v = e.target.value;
-    // 标准化换行符
-    v = v.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    // 压缩多余空行
-    v = v.replace(/\n{3,}/g, "\n\n");
-    setChatLog(v.slice(0, 800));
-  }, []);
+  // handleChange 现在由 ChatInput 内部处理
+  const handleChatChange = (value: string) => {
+    setChatLog(value);
+  };
 
   return (
     <div className="px-edge-margin pt-8 pb-16 flex flex-col min-h-screen">
@@ -119,23 +107,17 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
           </div>
         </div>
 
-        {/* Chat Textarea */}
+        {/* Chat Input */}
         <div className="flex flex-col pt-2">
           <label className="block label-caps text-on-surface-variant/60 mb-1 pl-1">
             把聊天记录贴进来
           </label>
           <div className="glass-surface rounded-2xl p-4 flex flex-col min-h-[260px] input-glow transition-all">
-            <textarea
-              ref={textareaRef}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              className="w-full flex-grow bg-transparent border-none p-0 text-body-md font-light text-on-surface resize-none leading-relaxed focus:ring-0 focus:outline-none"
-              placeholder={"把你反复看的那几句粘进来就够了\n不用整理格式，不用解释背景。"}
+            <ChatInput
               value={chatLog}
-              onChange={handleChange}
-              onPaste={handlePaste}
+              onChange={handleChatChange}
+              placeholder={"把你反复看的那几句粘进来就够了\n不用整理格式，不用解释背景。"}
+              maxLength={800}
             />
             <div className="flex justify-between items-center mt-3 pt-3 border-t border-white/5">
               <span className="text-xs text-on-surface-variant/40">
