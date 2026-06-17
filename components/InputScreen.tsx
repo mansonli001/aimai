@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { EXAMPLES } from "@/lib/constants";
 import ChatInput from "./ChatInput";
+import ImageUploader from "./ImageUploader";
+
+type InputMode = "text" | "image";
 
 interface InputScreenProps {
   onDetect: (me: string, her: string, chatLog: string, gender: string) => void;
@@ -13,6 +16,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
   const [her, setHer] = useState("");
   const [chatLog, setChatLog] = useState("");
   const [gender, setGender] = useState<"male" | "female">("male");
+  const [inputMode, setInputMode] = useState<InputMode>("text");
   const charLen = chatLog.length;
   const canSubmit = chatLog.trim().length >= 20;
 
@@ -20,6 +24,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
     setMe(example.me);
     setHer(example.her);
     setChatLog(example.text);
+    setInputMode("text");
   };
 
   const toggleGender = () => {
@@ -29,6 +34,12 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
   // handleChange 现在由 ChatInput 内部处理
   const handleChatChange = (value: string) => {
     setChatLog(value);
+  };
+
+  // 处理图片识别结果
+  const handleTextExtracted = (text: string) => {
+    setChatLog(text);
+    setInputMode("text"); // 识别完成后切回文字模式
   };
 
   return (
@@ -110,23 +121,61 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
         {/* Chat Input */}
         <div className="flex flex-col pt-2">
           <label className="block label-caps text-on-surface-variant/60 mb-1 pl-1">
-            把聊天记录贴进来
+            {inputMode === "image" ? "上传聊天截图" : "把聊天记录贴进来"}
           </label>
+
+          {/* 输入模式切换 */}
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={() => setInputMode("text")}
+              className={`
+                flex-1 py-2 text-xs tracking-wider rounded-xl border transition-all
+                ${inputMode === "text"
+                  ? "border-primary/40 text-primary bg-primary/5"
+                  : "border-white/10 text-on-surface-variant/40 hover:border-white/20"
+                }
+              `}
+            >
+              粘贴文字
+            </button>
+            <button
+              onClick={() => setInputMode("image")}
+              className={`
+                flex-1 py-2 text-xs tracking-wider rounded-xl border transition-all
+                ${inputMode === "image"
+                  ? "border-primary/40 text-primary bg-primary/5"
+                  : "border-white/10 text-on-surface-variant/40 hover:border-white/20"
+                }
+              `}
+            >
+              上传截图
+            </button>
+          </div>
+
           <div className="glass-surface rounded-2xl p-4 flex flex-col min-h-[260px] input-glow transition-all">
-            <ChatInput
-              value={chatLog}
-              onChange={handleChatChange}
-              placeholder={"把你反复看的那几句粘进来就够了\n不用整理格式，不用解释背景。"}
-              maxLength={800}
-            />
-            <div className="flex justify-between items-center mt-3 pt-3 border-t border-white/5">
-              <span className="text-xs text-on-surface-variant/40">
-                {charLen} / 800字
-              </span>
-              <span className="text-xs text-on-surface-variant/40">
-                你的聊天记录小暧看完就忘，她嘴严的
-              </span>
-            </div>
+            {inputMode === "text" ? (
+              <>
+                <ChatInput
+                  value={chatLog}
+                  onChange={handleChatChange}
+                  placeholder={"把你反复看的那几句粘进来就够了\n不用整理格式，不用解释背景。"}
+                  maxLength={800}
+                />
+                <div className="flex justify-between items-center mt-3 pt-3 border-t border-white/5">
+                  <span className="text-xs text-on-surface-variant/40">
+                    {charLen} / 800字
+                  </span>
+                  <span className="text-xs text-on-surface-variant/40">
+                    你的聊天记录小暧看完就忘，她嘴严的
+                  </span>
+                </div>
+              </>
+            ) : (
+              <ImageUploader
+                onTextExtracted={handleTextExtracted}
+                onCancel={() => setInputMode("text")}
+              />
+            )}
           </div>
         </div>
 
