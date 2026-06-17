@@ -28,16 +28,15 @@ export default function ChatInput({
 
   const handleFocus = () => {
     setShowHint(true);
-    // 强制聚焦并设置光标位置
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.focus({ preventScroll: true });
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         if (textarea) {
           textarea.selectionStart = textarea.value.length;
           textarea.selectionEnd = textarea.value.length;
         }
-      }, 0);
+      });
     }
   };
 
@@ -73,7 +72,6 @@ export default function ChatInput({
     }, 100);
   }, [value, onChange, maxLength]);
 
-  // 初始化时确保光标在正确位置
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
@@ -83,24 +81,8 @@ export default function ChatInput({
   }, []);
 
   return (
-    <div className="relative w-full">
-      {/* 粘贴小技巧 - 放在输入框上方（提示位置提高） */}
-      {showHint && value.length === 0 && (
-        <div className="mb-2 p-2 bg-primary/5 border border-primary/10 rounded-lg text-xs leading-relaxed">
-          <p className="text-primary font-medium mb-1">粘贴小技巧：</p>
-          <p className="text-on-surface-variant/70">
-            <span className="text-primary">1.</span> 微信多选→备忘录粘贴→全选复制→回到这里粘贴
-          </p>
-          <p className="text-on-surface-variant/70 mt-1">
-            <span className="text-primary">2.</span> 逐条复制消息，一条一条粘贴
-          </p>
-          <p className="text-primary/80 mt-2">
-            💡 嫌麻烦？直接点击上方「上传截图」按钮
-          </p>
-        </div>
-      )}
-
-      {/* 实际的输入框 - 还原原来的样式 */}
+    <div className="relative w-full flex flex-col">
+      {/* 实际的输入框 */}
       <textarea
         ref={textareaRef}
         className={`
@@ -122,6 +104,22 @@ export default function ChatInput({
         spellCheck={false}
         style={{ caretColor: 'inherit' }}
       />
+
+      {/* 粘贴小技巧 - 放在输入框下方 */}
+      {showHint && value.length === 0 && (
+        <div className="mt-4 p-3 bg-primary/5 border border-primary/10 rounded-lg text-xs leading-relaxed">
+          <p className="text-primary font-medium mb-1">粘贴小技巧：</p>
+          <p className="text-on-surface-variant/70">
+            <span className="text-primary">1.</span> 微信多选→备忘录粘贴→全选复制→回到这里粘贴
+          </p>
+          <p className="text-on-surface-variant/70 mt-1">
+            <span className="text-primary">2.</span> 逐条复制消息，一条一条粘贴
+          </p>
+          <p className="text-primary/80 mt-2">
+            💡 嫌麻烦？直接点击上方「上传截图」按钮
+          </p>
+        </div>
+      )}
     </div>
   );
 }

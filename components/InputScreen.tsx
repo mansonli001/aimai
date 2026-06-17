@@ -125,6 +125,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck={false}
+                style={{ caretColor: 'inherit' }}
               />
             </div>
           </div>
@@ -145,6 +146,7 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck={false}
+                style={{ caretColor: 'inherit' }}
               />
             </div>
           </div>
