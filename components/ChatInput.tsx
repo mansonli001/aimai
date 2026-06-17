@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 
 interface ChatInputProps {
   value: string;
@@ -15,107 +15,99 @@ export default function ChatInput({
   placeholder,
   maxLength = 800
 }: ChatInputProps) {
-  const divRef = useRef<HTMLDivElement>(null);
+  const [showHint, setShowHint] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 同步外部 value 到 DOM
-  useEffect(() => {
-    if (divRef.current && divRef.current.innerText !== value) {
-      divRef.current.innerText = value;
-    }
-  }, [value]);
+  // 不拦截 paste，让浏览器原生处理
+  // 微信 WKWebView 中，原生粘贴可能比 clipboardData.getData() 获取更多内容
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    let v = e.target.value;
+    // 标准化换行符
+    v = v.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // 压缩多余空行
+    v = v.replace(/\n{3,}/g, '\n\n');
+    onChange(v.slice(0, maxLength));
+  }, [onChange, maxLength]);
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    e.preventDefault();
+  const handleFocus = () => {
+    setShowHint(true);
+  };
 
-    let text = '';
+  const handleBlur = () => {
+    // 延迟隐藏，让按钮可点击
+    setTimeout(() => setShowHint(false), 200);
+  };
 
-    // 尝试1：text/plain
-    text = e.clipboardData.getData('text/plain');
+  // 尝试从选区获取粘贴内容（备用方案）
+  const tryPasteFromSelection = useCallback(() => {
+    // 创建一个临时的 input 来触发粘贴
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.style.position = 'fixed';
+    input.style.top = '-9999px';
+    input.style.left = '-9999px';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+    input.focus();
 
-    // 尝试2：如果 text/plain 被截断，试 text
-    if (!text) {
-      text = e.clipboardData.getData('text');
-    }
+    // 使用 setTimeout 确保 input 获得焦点后再粘贴
+    setTimeout(() => {
+      document.execCommand('paste', false);
 
-    // 尝试3：从 HTML 里剥文字
-    if (!text) {
-      const html = e.clipboardData.getData('text/html');
-      if (html) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        text = tmp.innerText || tmp.textContent || '';
+      const pastedText = input.value;
+      if (pastedText) {
+        // 将粘贴内容追加到当前文本
+        const textarea = textareaRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const current = value;
+          const newValue = (current.slice(0, start) + pastedText + current.slice(end)).slice(0, maxLength);
+          onChange(newValue);
+        }
       }
-    }
 
-    if (!text) return;
-
-    // 标准化换行符
-    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    text = text.replace(/\n{3,}/g, '\n\n');
-
-    // 插入到光标位置
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      range.deleteContents();
-      const textNode = document.createTextNode(text);
-      range.insertNode(textNode);
-      range.setStartAfter(textNode);
-      range.setEndAfter(textNode);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    } else if (divRef.current) {
-      divRef.current.innerText += text;
-    }
-
-    // 触发 onChange
-    const newVal = (divRef.current?.innerText || '').slice(0, maxLength);
-    onChange(newVal);
-  };
-
-  const handleInput = () => {
-    const currentText = divRef.current?.innerText || '';
-    // 标准化换行符
-    let normalized = currentText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    normalized = normalized.replace(/\n{3,}/g, '\n\n');
-    const newVal = normalized.slice(0, maxLength);
-    onChange(newVal);
-    // 防止超出 maxLength 时继续输入
-    if (divRef.current && divRef.current.innerText.length > maxLength) {
-      divRef.current.innerText = newVal;
-      // 光标移到末尾
-      const range = document.createRange();
-      const sel = window.getSelection();
-      range.selectNodeContents(divRef.current);
-      range.collapse(false);
-      sel?.removeAllRanges();
-      sel?.addRange(range);
-    }
-  };
+      document.body.removeChild(input);
+      textareaRef.current?.focus();
+    }, 100);
+  }, [value, onChange, maxLength]);
 
   return (
     <div className="relative w-full">
-      <div
-        ref={divRef}
-        contentEditable
-        suppressContentEditableWarning
-        onPaste={handlePaste}
-        onInput={handleInput}
+      <textarea
+        ref={textareaRef}
         className={`
-          w-full min-h-[200px] outline-none
-          bg-transparent text-body-md font-light text-on-surface
-          whitespace-pre-wrap break-words leading-relaxed
+          w-full min-h-[200px] bg-transparent border-none p-0
+          text-body-md font-light text-on-surface resize-none
+          leading-relaxed focus:ring-0 focus:outline-none
+          placeholder:text-[rgba(225,190,194,0.3)]
         `}
-        data-placeholder={placeholder}
-        style={{ WebkitUserModify: 'read-write-plaintext-only' }}
+        placeholder={placeholder}
+        value={value}
+        onChange={handleChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        maxLength={maxLength}
+        rows={8}
       />
-      <style>{`
-        [data-placeholder]:empty:before {
-          content: attr(data-placeholder);
-          color: rgba(225, 190, 194, 0.3);
-          pointer-events: none;
-        }
-      `}</style>
+
+      {/* 粘贴帮助提示 */}
+      {showHint && (
+        <div className="absolute bottom-full left-0 right-0 mb-2 p-3 bg-[rgba(0,0,0,0.85)] rounded-xl text-xs text-white/90 leading-relaxed z-10">
+          <p className="font-medium mb-2">粘贴多条消息的小技巧：</p>
+          <ol className="list-decimal list-inside space-y-1 text-white/70">
+            <li>在微信中长按选中消息 → 多选 → 全选 → 复制</li>
+            <li>点击下方输入框，长按粘贴（或点击右上角粘贴按钮）</li>
+            <li>如果还是只能粘贴一条，试试先复制到备忘录再粘贴</li>
+          </ol>
+          <button
+            onClick={tryPasteFromSelection}
+            className="mt-2 w-full py-2 bg-primary/80 hover:bg-primary rounded-lg text-white font-medium transition-colors"
+          >
+            尝试粘贴
+          </button>
+        </div>
+      )}
     </div>
   );
 }
