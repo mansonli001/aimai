@@ -61,15 +61,13 @@ export default function ImageUploader({ onTextExtracted, onCancel }: ImageUpload
     text = text
       // 1. 移除不可见字符（零宽空格、BOM等）
       .replace(/[\u200B\u200C\u200D\uFEFF\u2028\u2029]/g, '')
-      // 2. 移除表情符号（保留基本符号）
-      .replace(/[\uD83C-\uD83E][\uDC00-\uDFFF]/g, '')  // 使用代理对匹配表情
-      // 3. 移除特殊图形符号（复选框、圆点等）
+      // 2. 移除特殊图形符号（保留常见表情符号）
       .replace(/[✓✔✕✗●○■□▲▼◆◇★☆✦✧✩✪✫✬✭✮✯✰]/g, '')
-      // 4. 移除多余空白（保留单个空格和换行）
+      // 3. 移除多余空白（保留单个空格和换行）
       .replace(/[ \t]+/g, ' ')
-      // 5. 标准化换行（最多保留两个连续换行）
+      // 4. 标准化换行（最多保留两个连续换行）
       .replace(/\n{3,}/g, '\n\n')
-      // 6. 移除单独的数字行（时间戳）
+      // 5. 移除单独的数字行（时间戳）
       .split('\n').filter(line => {
         // 过滤纯数字行（如 "12:30"、"2024/1/1"）
         if (/^\s*\d{1,2}[:/]\d{1,2}(:\d{2})?\s*$/.test(line)) return false;
@@ -77,9 +75,9 @@ export default function ImageUploader({ onTextExtracted, onCancel }: ImageUpload
         if (line.trim().length < 2) return false;
         return true;
       }).join('\n')
-      // 7. 移除行首行尾空白
+      // 6. 移除行首行尾空白
       .split('\n').map(line => line.trim()).join('\n')
-      // 8. 清理首尾空白
+      // 7. 清理首尾空白
       .trim();
 
     return text;
