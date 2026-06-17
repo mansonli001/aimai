@@ -26,55 +26,19 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
     setGender((g) => (g === "male" ? "female" : "male"));
   };
 
-  // 粘贴处理：不依赖 navigator.clipboard（微信 WKWebView 不支持）
-  // 直接在 paste 事件中同步读取 clipboardData
+  // 不拦截粘贴事件，让浏览器原生处理
+  // 微信 WKWebView 中原生粘贴能拿到完整内容，clipboardData.getData() 被限制
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
+    // 不调用 e.preventDefault()，让浏览器原生粘贴
+    // 完整内容会通过 onChange 事件获取
+  }, []);
 
-    const clipboardData = e.clipboardData || (window as any).clipboardData;
-    if (!clipboardData) return;
-
-    // 1. 优先取纯文本 —— paste 事件中 getData 是同步的，能拿到完整内容
-    let text = clipboardData.getData("text/plain") || "";
-
-    // 2. 降级：取 HTML 格式，剥掉标签
-    if (!text) {
-      const html = clipboardData.getData("text/html");
-      if (html) {
-        const div = document.createElement("div");
-        div.innerHTML = html;
-        text = div.innerText || div.textContent || "";
-      }
-    }
-
-    if (!text) return;
-
-    // 标准化换行符
-    text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    text = text.replace(/\n{3,}/g, "\n\n");
-
-    // 插入到光标位置
-    const el = textareaRef.current;
-    if (el) {
-      const start = el.selectionStart;
-      const end = el.selectionEnd;
-      const current = chatLog;
-      const newValue = (current.slice(0, start) + text + current.slice(end)).slice(0, 800);
-      setChatLog(newValue);
-      requestAnimationFrame(() => {
-        const pos = Math.min(start + text.length, 800);
-        el.focus();
-        el.setSelectionRange(pos, pos);
-      });
-    } else {
-      setChatLog((chatLog + text).slice(0, 800));
-    }
-  }, [chatLog]);
-
-  // onChange 处理手动输入
+  // onChange 处理手动输入和粘贴后的内容
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     let v = e.target.value;
+    // 标准化换行符
     v = v.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    // 压缩多余空行
     v = v.replace(/\n{3,}/g, "\n\n");
     setChatLog(v.slice(0, 800));
   }, []);
