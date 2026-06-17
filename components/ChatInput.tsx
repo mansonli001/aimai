@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface ChatInputProps {
   value: string;
@@ -31,6 +31,12 @@ export default function ChatInput({
 
   const handleFocus = () => {
     setShowHint(true);
+    // 确保光标在文本末尾
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.selectionStart = textarea.value.length;
+      textarea.selectionEnd = textarea.value.length;
+    }
   };
 
   const handleBlur = () => {
@@ -40,7 +46,6 @@ export default function ChatInput({
 
   // 尝试从选区获取粘贴内容（备用方案）
   const tryPasteFromSelection = useCallback(() => {
-    // 创建一个临时的 input 来触发粘贴
     const input = document.createElement('input');
     input.type = 'text';
     input.style.position = 'fixed';
@@ -50,13 +55,11 @@ export default function ChatInput({
     document.body.appendChild(input);
     input.focus();
 
-    // 使用 setTimeout 确保 input 获得焦点后再粘贴
     setTimeout(() => {
       document.execCommand('paste', false);
 
       const pastedText = input.value;
       if (pastedText) {
-        // 将粘贴内容追加到当前文本
         const textarea = textareaRef.current;
         if (textarea) {
           const start = textarea.selectionStart;
@@ -72,8 +75,17 @@ export default function ChatInput({
     }, 100);
   }, [value, onChange, maxLength]);
 
+  // 初始化时确保光标在正确位置
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.selectionStart = 0;
+      textarea.selectionEnd = 0;
+    }
+  }, []);
+
   return (
-    <div className="relative w-full">
+    <div className="relative w-full flex flex-col">
       <textarea
         ref={textareaRef}
         className={`
@@ -89,42 +101,40 @@ export default function ChatInput({
         onBlur={handleBlur}
         maxLength={maxLength}
         rows={8}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
       />
 
-      {/* 粘贴帮助提示 - 向下展开 */}
-      {showHint && (
-        <div className="absolute top-full left-0 right-0 mt-2 p-4 bg-[rgba(0,0,0,0.9)] rounded-xl text-xs text-white/90 leading-relaxed z-10 shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <p className="font-medium text-white">粘贴多条消息的小技巧：</p>
-            <button
-              onClick={() => setShowHint(false)}
-              className="text-white/50 hover:text-white transition-colors"
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* 方法一：推荐 */}
-          <div className="mb-2 p-2 bg-white/10 rounded-lg">
-            <p className="text-primary font-medium mb-1">方法一（推荐）：备忘录中转</p>
-            <p className="text-white/70">微信多选复制 → 备忘录粘贴 → 全选复制备忘录 → 回到网页粘贴</p>
-          </div>
+      {/* 粘贴帮助提示 - 在输入框下方显示 */}
+      {showHint && value.length === 0 && (
+        <div className="mt-2 p-3 bg-primary/5 border border-primary/10 rounded-lg text-xs leading-relaxed">
+          <p className="text-primary font-medium mb-2">粘贴小技巧：</p>
+          
+          {/* 方法一：备忘录中转 */}
+          <p className="text-on-surface-variant/70 mb-2">
+            <span className="text-primary">方法一：</span>
+            微信多选复制 → 备忘录粘贴 → 全选复制 → 回到这里粘贴
+          </p>
 
           {/* 方法二：单条粘贴 */}
-          <div className="mb-2 p-2 bg-white/10 rounded-lg">
-            <p className="text-primary font-medium mb-1">方法二：单条复制粘贴</p>
-            <p className="text-white/70">逐条复制你想分析的消息，一条一条粘贴到输入框</p>
+          <p className="text-on-surface-variant/70 mb-2">
+            <span className="text-primary">方法二：</span>
+            逐条复制你想分析的消息，一条一条粘贴
+          </p>
+
+          {/* 推荐截图上传 */}
+          <div className="mt-2 pt-2 border-t border-primary/10">
+            <p className="text-primary/80">
+              💡 嫌麻烦？直接点击上方「上传截图」按钮，自动识别聊天内容
+            </p>
           </div>
 
-          {/* 方法三：Safari浏览器 */}
-          <div className="mb-3 p-2 bg-white/10 rounded-lg">
-            <p className="text-primary font-medium mb-1">方法三：换浏览器打开</p>
-            <p className="text-white/70">复制链接 → 打开 Safari/Chrome → 粘贴网址 → 粘贴功能更完整</p>
-          </div>
-
+          {/* 尝试粘贴按钮 */}
           <button
             onClick={tryPasteFromSelection}
-            className="w-full py-2 bg-primary hover:bg-primary/90 rounded-lg text-white font-medium transition-colors active:scale-[0.98]"
+            className="mt-2 w-full py-1.5 bg-primary/10 hover:bg-primary/20 rounded-lg text-primary text-xs font-medium transition-colors"
           >
             尝试粘贴
           </button>

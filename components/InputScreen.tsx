@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { EXAMPLES } from "@/lib/constants";
 import ChatInput from "./ChatInput";
 import ImageUploader from "./ImageUploader";
@@ -19,6 +19,10 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
   const [inputMode, setInputMode] = useState<InputMode>("text");
   const charLen = chatLog.length;
   const canSubmit = chatLog.trim().length >= 20;
+
+  // Refs for input elements to fix cursor position
+  const meInputRef = useRef<HTMLInputElement>(null);
+  const herInputRef = useRef<HTMLInputElement>(null);
 
   const handlePillClick = (example: (typeof EXAMPLES)[number]) => {
     setMe(example.me);
@@ -41,6 +45,17 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
     setChatLog(text);
     setInputMode("text"); // 识别完成后切回文字模式
   };
+
+  // 处理输入框聚焦，确保光标在正确位置
+  const handleInputFocus = useCallback((ref: React.RefObject<HTMLInputElement | null>) => {
+    setTimeout(() => {
+      const input = ref.current;
+      if (input) {
+        input.selectionStart = input.value.length;
+        input.selectionEnd = input.value.length;
+      }
+    }, 0);
+  }, []);
 
   return (
     <div className="px-edge-margin pt-8 pb-16 flex flex-col min-h-screen">
@@ -94,11 +109,17 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
             </label>
             <div className="glass-surface rounded-xl px-4 py-3 input-glow transition-all">
               <input
+                ref={meInputRef}
                 className="w-full bg-transparent border-none p-0 text-body-md font-light text-on-surface focus:ring-0 focus:outline-none"
                 placeholder="随便填"
                 value={me}
                 onChange={(e) => setMe(e.target.value.slice(0, 10))}
+                onFocus={() => handleInputFocus(meInputRef)}
                 maxLength={10}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
               />
             </div>
           </div>
@@ -108,11 +129,17 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
             </label>
             <div className="glass-surface rounded-xl px-4 py-3 input-glow transition-all">
               <input
+                ref={herInputRef}
                 className="w-full bg-transparent border-none p-0 text-body-md font-light text-on-surface focus:ring-0 focus:outline-none"
                 placeholder="随便填"
                 value={her}
                 onChange={(e) => setHer(e.target.value.slice(0, 10))}
+                onFocus={() => handleInputFocus(herInputRef)}
                 maxLength={10}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
               />
             </div>
           </div>
