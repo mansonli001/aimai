@@ -17,6 +17,7 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [showHint, setShowHint] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const focusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 不拦截 paste，让浏览器原生处理
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -24,9 +25,46 @@ export default function ChatInput({
     v = v.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     v = v.replace(/\n{3,}/g, '\n\n');
     onChange(v.slice(0, maxLength));
+
+    // 粘贴后自动调整光标位置（向上移动2行）
+    const textarea = textareaRef.current;
+    if (textarea) {
+      requestAnimationFrame(() => {
+        // 计算向上移动2行的位置
+        const lines = v.split('\n');
+        let currentPos = textarea.selectionStart;
+        let lineCount = 0;
+        let newPos = currentPos;
+
+        // 从当前位置向前查找2行
+        for (let i = currentPos - 1; i >= 0 && lineCount < 2; i--) {
+          if (v[i] === '\n') {
+            lineCount++;
+            if (lineCount === 2) {
+              newPos = i + 1;
+              break;
+            }
+          }
+        }
+
+        // 如果找到2行，设置光标位置
+        if (lineCount === 2) {
+          textarea.selectionStart = newPos;
+          textarea.selectionEnd = newPos;
+
+          // 滚动到光标位置
+          textarea.focus({ preventScroll: false });
+        }
+      });
+    }
   }, [onChange, maxLength]);
 
   const handleFocus = () => {
+    // 防抖：避免短时间内重复聚焦
+    if (focusTimeoutRef.current) {
+      clearTimeout(focusTimeoutRef.current);
+    }
+
     setShowHint(true);
     const textarea = textareaRef.current;
     if (textarea) {
@@ -35,8 +73,24 @@ export default function ChatInput({
         if (textarea) {
           textarea.selectionStart = textarea.value.length;
           textarea.selectionEnd = textarea.value.length;
+
+          // 智能滚动：确保输入框底部可见，不被键盘遮挡
+          const rect = textarea.getBoundingClientRect();
+          const viewportHeight = window.innerHeight;
+          const keyboardHeight = viewportHeight * 0.4; // 假设键盘占40%高度
+
+          // 如果输入框底部会被键盘遮挡，向上滚动
+          if (rect.bottom > viewportHeight - keyboardHeight) {
+            const scrollOffset = rect.bottom - (viewportHeight - keyboardHeight) + 20;
+            window.scrollBy({ top: scrollOffset, behavior: 'smooth' });
+          }
         }
       });
+
+      // 设置防抖定时器
+      focusTimeoutRef.current = setTimeout(() => {
+        focusTimeoutRef.current = null;
+      }, 300);
     }
   };
 
@@ -78,6 +132,13 @@ export default function ChatInput({
       textarea.selectionStart = 0;
       textarea.selectionEnd = 0;
     }
+
+    // 清理定时器
+    return () => {
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+      }
+    };
   }, []);
 
   return (
