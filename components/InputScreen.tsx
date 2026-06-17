@@ -12,7 +12,6 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
   const [her, setHer] = useState("");
   const [chatLog, setChatLog] = useState("");
   const [gender, setGender] = useState<"male" | "female">("male");
-  const [pasteHint, setPasteHint] = useState("");
   const charLen = chatLog.length;
   const canSubmit = chatLog.trim().length >= 20;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -27,110 +26,50 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
     setGender((g) => (g === "male" ? "female" : "male"));
   };
 
-  // 从 HTML 中提取纯文本，保留换行结构
-  const htmlToText = useCallback((html: string): string => {
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    // 将 block 元素后面加换行
-    doc.querySelectorAll("div, p, br").forEach((el) => {
-      el.appendChild(doc.createTextNode("\n"));
-    });
-    let text = doc.body?.textContent || "";
-    // 清理多余空行
-    text = text.replace(/\n{3,}/g, "\n\n").trim();
-    return text;
-  }, []);
+  // 粘贴处理：不依赖 navigator.clipboard（微信 WKWebView 不支持）
+  // 直接在 paste 事件中同步读取 clipboardData
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
 
-  // 将文本插入到 textarea
-  const insertText = useCallback((text: string) => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      setChatLog(text.slice(0, 800));
-      return;
-    }
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const currentValue = chatLog;
-    const newValue = currentValue.substring(0, start) + text + currentValue.substring(end);
-    setChatLog(newValue.slice(0, 800));
-    requestAnimationFrame(() => {
-      const pos = Math.min(start + text.length, 800);
-      textarea.focus();
-      textarea.setSelectionRange(pos, pos);
-    });
-  }, [chatLog]);
-
-  // 拦截粘贴事件：优先读 HTML（微信多条消息完整内容在 HTML 里）
-  const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const clipboardData = e.clipboardData || (window as any).clipboardData;
     if (!clipboardData) return;
 
-    let text = "";
+    // 1. 优先取纯文本 —— paste 事件中 getData 是同步的，能拿到完整内容
+    let text = clipboardData.getData("text/plain") || "";
 
-    // 1. 优先尝试 text/html —— 微信多选复制的完整内容在这里
-    const html = clipboardData.getData("text/html");
-    if (html && html.trim()) {
-      text = htmlToText(html);
+    // 2. 降级：取 HTML 格式，剥掉标签
+    if (!text) {
+      const html = clipboardData.getData("text/html");
+      if (html) {
+        const div = document.createElement("div");
+        div.innerHTML = html;
+        text = div.innerText || div.textContent || "";
+      }
     }
 
-    // 2. 如果 HTML 解析结果太短，用 text/plain 补充
-    const plain = clipboardData.getData("text/plain") || "";
-    if (!text || plain.length > text.length) {
-      text = plain;
-    }
-
-    if (!text) return; // 没有内容则让浏览器默认处理
-
-    e.preventDefault();
+    if (!text) return;
 
     // 标准化换行符
     text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     text = text.replace(/\n{3,}/g, "\n\n");
 
-    insertText(text);
-  }, [htmlToText, insertText]);
-
-  // "粘贴聊天记录"按钮：用 Clipboard API 直接读取系统剪贴板
-  const handlePasteButton = useCallback(async () => {
-    try {
-      // 优先用 read() API 尝试获取 HTML
-      if (navigator.clipboard?.read) {
-        const items = await navigator.clipboard.read();
-        for (const item of items) {
-          if (item.types.includes("text/html")) {
-            const blob = await item.getType("text/html");
-            const html = await blob.text();
-            const text = htmlToText(html);
-            if (text) {
-              insertText(text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n"));
-              setPasteHint("已粘贴完整内容");
-              setTimeout(() => setPasteHint(""), 2000);
-              return;
-            }
-          }
-          if (item.types.includes("text/plain")) {
-            const blob = await item.getType("text/plain");
-            const text = await blob.text();
-            if (text) {
-              insertText(text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n"));
-              setPasteHint("已粘贴");
-              setTimeout(() => setPasteHint(""), 2000);
-              return;
-            }
-          }
-        }
-      }
-      // 降级到 readText()
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        insertText(text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n"));
-        setPasteHint("已粘贴");
-        setTimeout(() => setPasteHint(""), 2000);
-      }
-    } catch {
-      setPasteHint("请长按输入框手动粘贴");
-      setTimeout(() => setPasteHint(""), 3000);
+    // 插入到光标位置
+    const el = textareaRef.current;
+    if (el) {
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const current = chatLog;
+      const newValue = (current.slice(0, start) + text + current.slice(end)).slice(0, 800);
+      setChatLog(newValue);
+      requestAnimationFrame(() => {
+        const pos = Math.min(start + text.length, 800);
+        el.focus();
+        el.setSelectionRange(pos, pos);
+      });
+    } else {
+      setChatLog((chatLog + text).slice(0, 800));
     }
-  }, [htmlToText, insertText]);
+  }, [chatLog]);
 
   // onChange 处理手动输入
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -218,21 +157,16 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
 
         {/* Chat Textarea */}
         <div className="flex flex-col pt-2">
-          <div className="flex items-center justify-between mb-1 pl-1">
-            <label className="label-caps text-on-surface-variant/60">
-              把聊天记录贴进来
-            </label>
-            <button
-              type="button"
-              className="label-caps text-primary/70 hover:text-primary transition-colors active:scale-95"
-              onClick={handlePasteButton}
-            >
-              {pasteHint || "粘贴聊天记录"}
-            </button>
-          </div>
+          <label className="block label-caps text-on-surface-variant/60 mb-1 pl-1">
+            把聊天记录贴进来
+          </label>
           <div className="glass-surface rounded-2xl p-4 flex flex-col min-h-[260px] input-glow transition-all">
             <textarea
               ref={textareaRef}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className="w-full flex-grow bg-transparent border-none p-0 text-body-md font-light text-on-surface resize-none leading-relaxed focus:ring-0 focus:outline-none"
               placeholder={"把你反复看的那几句粘进来就够了\n不用整理格式，不用解释背景。"}
               value={chatLog}
