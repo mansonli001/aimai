@@ -31,9 +31,7 @@ export default function ChatInput({
     // 强制聚焦并设置光标位置
     const textarea = textareaRef.current;
     if (textarea) {
-      // 先确保获得焦点
       textarea.focus({ preventScroll: true });
-      // 设置光标在文本末尾
       setTimeout(() => {
         if (textarea) {
           textarea.selectionStart = textarea.value.length;
@@ -86,51 +84,44 @@ export default function ChatInput({
 
   return (
     <div className="relative w-full">
-      {/* 输入区域 - 包含提示 */}
-      <div className="flex flex-col">
-        {/* 提示信息 - 放在输入框上方/内部 */}
-        <div className="text-xs text-primary/70 mb-2 leading-relaxed">
-          {placeholder}
+      {/* 粘贴小技巧 - 放在输入框上方（提示位置提高） */}
+      {showHint && value.length === 0 && (
+        <div className="mb-2 p-2 bg-primary/5 border border-primary/10 rounded-lg text-xs leading-relaxed">
+          <p className="text-primary font-medium mb-1">粘贴小技巧：</p>
+          <p className="text-on-surface-variant/70">
+            <span className="text-primary">1.</span> 微信多选→备忘录粘贴→全选复制→回到这里粘贴
+          </p>
+          <p className="text-on-surface-variant/70 mt-1">
+            <span className="text-primary">2.</span> 逐条复制消息，一条一条粘贴
+          </p>
+          <p className="text-primary/80 mt-2">
+            💡 嫌麻烦？直接点击上方「上传截图」按钮
+          </p>
         </div>
+      )}
 
-        {/* 粘贴小技巧 - 放在提示下面 */}
-        {showHint && value.length === 0 && (
-          <div className="mb-2 p-2 bg-primary/5 border border-primary/10 rounded-lg text-xs leading-relaxed">
-            <p className="text-primary font-medium mb-1">粘贴小技巧：</p>
-            <p className="text-on-surface-variant/70">
-              <span className="text-primary">1.</span> 微信多选→备忘录粘贴→全选复制→回到这里粘贴
-            </p>
-            <p className="text-on-surface-variant/70 mt-1">
-              <span className="text-primary">2.</span> 逐条复制消息，一条一条粘贴
-            </p>
-            <p className="text-primary/80 mt-2">
-              💡 嫌麻烦？直接点击上方「上传截图」按钮
-            </p>
-          </div>
-        )}
-
-        {/* 实际的输入框 */}
-        <textarea
-          ref={textareaRef}
-          className={`
-            w-full min-h-[140px] bg-transparent border-none p-0
-            text-body-md font-light text-on-surface resize-none
-            leading-relaxed focus:ring-0 focus:outline-none
-            placeholder:text-[rgba(225,190,194,0.3)]
-          `}
-          value={value}
-          onChange={handleChange}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          maxLength={maxLength}
-          rows={6}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          style={{ caretColor: 'inherit' }}
-        />
-      </div>
+      {/* 实际的输入框 - 还原原来的样式 */}
+      <textarea
+        ref={textareaRef}
+        className={`
+          w-full min-h-[200px] bg-transparent border-none p-0
+          text-body-md font-light text-on-surface resize-none
+          leading-relaxed focus:ring-0 focus:outline-none
+          placeholder:text-[rgba(225,190,194,0.3)]
+        `}
+        placeholder={placeholder}
+        value={value}
+        onChange={handleChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        maxLength={maxLength}
+        rows={8}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        style={{ caretColor: 'inherit' }}
+      />
     </div>
   );
 }
