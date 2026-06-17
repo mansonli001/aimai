@@ -91,19 +91,27 @@ export default function ChatInput({
         rows={8}
       />
 
-      {/* 粘贴帮助提示 */}
+      {/* 粘贴帮助提示 - 向下展开 */}
       {showHint && (
-        <div className="absolute bottom-full left-0 right-0 mb-2 p-4 bg-[rgba(0,0,0,0.9)] rounded-xl text-xs text-white/90 leading-relaxed z-10">
-          <p className="font-medium mb-2 text-white">粘贴多条消息的小技巧：</p>
+        <div className="absolute top-full left-0 right-0 mt-2 p-4 bg-[rgba(0,0,0,0.9)] rounded-xl text-xs text-white/90 leading-relaxed z-10 shadow-lg">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-medium text-white">粘贴多条消息的小技巧：</p>
+            <button
+              onClick={() => setShowHint(false)}
+              className="text-white/50 hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+          </div>
 
           {/* 方法一：推荐 */}
-          <div className="mb-3 p-2 bg-white/10 rounded-lg">
+          <div className="mb-2 p-2 bg-white/10 rounded-lg">
             <p className="text-primary font-medium mb-1">方法一（推荐）：备忘录中转</p>
             <p className="text-white/70">微信多选复制 → 备忘录粘贴 → 全选复制备忘录 → 回到网页粘贴</p>
           </div>
 
           {/* 方法二：单条粘贴 */}
-          <div className="mb-3 p-2 bg-white/10 rounded-lg">
+          <div className="mb-2 p-2 bg-white/10 rounded-lg">
             <p className="text-primary font-medium mb-1">方法二：单条复制粘贴</p>
             <p className="text-white/70">逐条复制你想分析的消息，一条一条粘贴到输入框</p>
           </div>
@@ -116,7 +124,7 @@ export default function ChatInput({
 
           <button
             onClick={tryPasteFromSelection}
-            className="mt-1 w-full py-2 bg-primary hover:bg-primary/90 rounded-lg text-white font-medium transition-colors active:scale-[0.98]"
+            className="w-full py-2 bg-primary hover:bg-primary/90 rounded-lg text-white font-medium transition-colors active:scale-[0.98]"
           >
             尝试粘贴
           </button>

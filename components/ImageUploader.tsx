@@ -11,7 +11,9 @@ interface ImageUploaderProps {
 export default function ImageUploader({ onTextExtracted, onCancel }: ImageUploaderProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [totalImages, setTotalImages] = useState(0);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -41,77 +43,111 @@ export default function ImageUploader({ onTextExtracted, onCancel }: ImageUpload
     });
   }, []);
 
-  // 处理图片上传
-  const handleImageUpload = useCallback(async (file: File) => {
-    // 验证文件类型
-    if (!file.type.startsWith('image/')) {
-      setError('请上传图片文件');
+  // 处理单张图片识别
+  const processSingleImage = useCallback(async (file: File): Promise<string> => {
+    const compressed = await compressImage(file);
+    
+    const result = await Tesseract.recognize(compressed, 'eng+chi_sim', {
+      logger: (m) => {
+        if (m.status === 'recognizing text') {
+          setProgress(Math.round(m.progress * 100));
+        }
+      },
+    });
+
+    let text = result.data.text;
+
+    // 清理识别结果
+    text = text
+      // 移除多余空白
+      .replace(/\s+/g, ' ')
+      // 标准化换行
+      .replace(/\n{3,}/g, '\n\n')
+      // 清理首尾空白
+      .trim();
+
+    return text;
+  }, [compressImage]);
+
+  // 处理图片上传（支持多张）
+  const handleImageUpload = useCallback(async (files: File[]) => {
+    // 验证文件数量（最多 5 张）
+    if (files.length > 5) {
+      setError('最多支持上传 5 张图片');
       return;
     }
 
-    // 验证文件大小 (最大 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setError('图片大小不能超过 10MB');
-      return;
+    // 验证所有文件
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        setError('请上传图片文件');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setError('单张图片大小不能超过 10MB');
+        return;
+      }
     }
 
     setIsProcessing(true);
     setError(null);
     setProgress(0);
+    setTotalImages(files.length);
+    setCurrentImageIndex(1);
+
+    const results: string[] = [];
+    const previews: string[] = [];
 
     try {
-      // 压缩图片
-      const compressed = await compressImage(file);
-      setPreviewUrl(compressed);
+      // 依次处理每张图片
+      for (let i = 0; i < files.length; i++) {
+        setCurrentImageIndex(i + 1);
+        setProgress(0);
 
-      // 使用 Tesseract OCR
-      const result = await Tesseract.recognize(compressed, 'eng+chi_sim', {
-        logger: (m) => {
-          if (m.status === 'recognizing text') {
-            setProgress(Math.round(m.progress * 100));
-          }
-        },
-      });
+        const compressed = await compressImage(files[i]);
+        previews.push(compressed);
+        setPreviewUrls([...previews]);
 
-      let text = result.data.text;
+        const text = await processSingleImage(files[i]);
+        if (text.length >= 5) {
+          results.push(text);
+        }
+      }
 
-      // 清理识别结果
-      text = text
-        // 移除多余空白
-        .replace(/\s+/g, ' ')
-        // 标准化换行
-        .replace(/\n{3,}/g, '\n\n')
-        // 清理首尾空白
-        .trim();
+      // 合并所有识别结果
+      const combinedText = results.join('\n\n');
 
-      if (text.length < 5) {
+      if (!combinedText || combinedText.length < 5) {
         setError('未能识别到聊天内容，请确保截图清晰');
         setIsProcessing(false);
         return;
       }
 
-      onTextExtracted(text);
+      onTextExtracted(combinedText);
     } catch (err) {
       console.error('OCR error:', err);
       setError('识别失败，请重试或换张图片');
     } finally {
       setIsProcessing(false);
     }
-  }, [compressImage, onTextExtracted]);
+  }, [compressImage, processSingleImage, onTextExtracted]);
 
   // 处理文件选择
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleImageUpload(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const fileArray = Array.from(files);
+      handleImageUpload(fileArray);
     }
   }, [handleImageUpload]);
 
   // 重新选择图片
   const handleReset = () => {
-    setPreviewUrl(null);
+    setPreviewUrls([]);
     setError(null);
     setProgress(0);
+    setCurrentImageIndex(0);
+    setTotalImages(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -123,12 +159,12 @@ export default function ImageUploader({ onTextExtracted, onCancel }: ImageUpload
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
+        multiple  // 支持多图上传
         className="hidden"
         onChange={handleFileChange}
       />
 
-      {!previewUrl ? (
+      {previewUrls.length === 0 ? (
         // 上传区域
         <label
           onClick={() => fileInputRef.current?.click()}
@@ -144,29 +180,26 @@ export default function ImageUploader({ onTextExtracted, onCancel }: ImageUpload
             点击上传聊天截图
           </span>
           <span className="text-[10px] text-on-surface-variant/30">
-            支持微信聊天截图，自动识别聊天内容
+            支持从相册选择，可多选最多5张
           </span>
         </label>
       ) : (
         // 预览和处理区域
         <div className="flex flex-col gap-3">
-          {/* 图片预览 */}
-          <div className="relative rounded-xl overflow-hidden bg-black/20">
-            <img
-              src={previewUrl}
-              alt="预览"
-              className="w-full max-h-[200px] object-contain"
-            />
-
-            {/* 重新选择按钮 */}
-            <button
-              onClick={handleReset}
-              className="absolute top-2 right-2 p-2 bg-black/50 rounded-full text-white/80 hover:text-white transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          {/* 图片预览网格 */}
+          <div className="grid grid-cols-3 gap-2">
+            {previewUrls.map((url, index) => (
+              <div
+                key={index}
+                className="relative aspect-square rounded-lg overflow-hidden bg-black/20"
+              >
+                <img
+                  src={url}
+                  alt={`预览 ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
           </div>
 
           {/* 处理状态 */}
@@ -174,7 +207,7 @@ export default function ImageUploader({ onTextExtracted, onCancel }: ImageUpload
             <div className="flex flex-col items-center gap-2 py-4">
               <div className="w-8 h-8 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
               <span className="text-sm text-on-surface-variant/60">
-                小暧正在识别截图...
+                小暧正在识别截图... ({currentImageIndex}/{totalImages})
               </span>
               {/* 进度条 */}
               <div className="w-full max-w-[200px] h-1 bg-white/10 rounded-full overflow-hidden">
