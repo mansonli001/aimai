@@ -93,16 +93,30 @@ export default function ChatInput({
 
       {/* 粘贴帮助提示 */}
       {showHint && (
-        <div className="absolute bottom-full left-0 right-0 mb-2 p-3 bg-[rgba(0,0,0,0.85)] rounded-xl text-xs text-white/90 leading-relaxed z-10">
-          <p className="font-medium mb-2">粘贴多条消息的小技巧：</p>
-          <ol className="list-decimal list-inside space-y-1 text-white/70">
-            <li>在微信中长按选中消息 → 多选 → 全选 → 复制</li>
-            <li>点击下方输入框，长按粘贴（或点击右上角粘贴按钮）</li>
-            <li>如果还是只能粘贴一条，试试先复制到备忘录再粘贴</li>
-          </ol>
+        <div className="absolute bottom-full left-0 right-0 mb-2 p-4 bg-[rgba(0,0,0,0.9)] rounded-xl text-xs text-white/90 leading-relaxed z-10">
+          <p className="font-medium mb-2 text-white">粘贴多条消息的小技巧：</p>
+
+          {/* 方法一：推荐 */}
+          <div className="mb-3 p-2 bg-white/10 rounded-lg">
+            <p className="text-primary font-medium mb-1">方法一（推荐）：备忘录中转</p>
+            <p className="text-white/70">微信多选复制 → 备忘录粘贴 → 全选复制备忘录 → 回到网页粘贴</p>
+          </div>
+
+          {/* 方法二：单条粘贴 */}
+          <div className="mb-3 p-2 bg-white/10 rounded-lg">
+            <p className="text-primary font-medium mb-1">方法二：单条复制粘贴</p>
+            <p className="text-white/70">逐条复制你想分析的消息，一条一条粘贴到输入框</p>
+          </div>
+
+          {/* 方法三：Safari浏览器 */}
+          <div className="mb-3 p-2 bg-white/10 rounded-lg">
+            <p className="text-primary font-medium mb-1">方法三：换浏览器打开</p>
+            <p className="text-white/70">复制链接 → 打开 Safari/Chrome → 粘贴网址 → 粘贴功能更完整</p>
+          </div>
+
           <button
             onClick={tryPasteFromSelection}
-            className="mt-2 w-full py-2 bg-primary/80 hover:bg-primary rounded-lg text-white font-medium transition-colors"
+            className="mt-1 w-full py-2 bg-primary hover:bg-primary/90 rounded-lg text-white font-medium transition-colors active:scale-[0.98]"
           >
             尝试粘贴
           </button>
