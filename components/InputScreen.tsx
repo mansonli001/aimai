@@ -48,13 +48,18 @@ export default function InputScreen({ onDetect }: InputScreenProps) {
 
   // 处理输入框聚焦，确保光标在正确位置
   const handleInputFocus = useCallback((ref: React.RefObject<HTMLInputElement | null>) => {
-    setTimeout(() => {
-      const input = ref.current;
-      if (input) {
-        input.selectionStart = input.value.length;
-        input.selectionEnd = input.value.length;
-      }
-    }, 0);
+    const input = ref.current;
+    if (input) {
+      // 先确保获得焦点
+      input.focus({ preventScroll: true });
+      // 使用 requestAnimationFrame 确保 DOM 已更新
+      requestAnimationFrame(() => {
+        if (input) {
+          input.selectionStart = input.value.length;
+          input.selectionEnd = input.value.length;
+        }
+      });
+    }
   }, []);
 
   return (
